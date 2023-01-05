@@ -50,7 +50,8 @@ class PrepareDataset:
             md.RECORDING_INDEX: [],
             md.FRAME_INDEX: [],
             md.GAZE_X: [],
-            md.GAZE_Y: []
+            md.GAZE_Y: [],
+            md.FACE_GRID: []
         }
 
         for i, recording in enumerate(recordings):
