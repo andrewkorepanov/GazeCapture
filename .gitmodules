@@ -1,0 +1,6 @@
+[submodule "src/ext/HRNet-Facial-Landmark-Detection"]
+	path = src/ext/HRNet-Facial-Landmark-Detection
+	url = https://github.com/HRNet/HRNet-Facial-Landmark-Detection
+[submodule "src/ext/mtcnn-pytorch"]
+	path = src/ext/mtcnn-pytorch
+	url = https://github.com/TropComplique/mtcnn-pytorch

@@ -1,0 +1,5 @@
+{
+    "python.analysis.extraPaths": [
+        "./src/ext/HRNet-Facial-Landmark-Detection"
+    ]
+}
