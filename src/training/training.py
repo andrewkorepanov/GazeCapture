@@ -14,54 +14,13 @@ import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import torchvision.models as models
 
-from ..models import GazeModel
-from ..data import DataLoader, metadata as md
-
-
-'''
-Train/test code for iTracker.
-
-Author: Petr Kellnhofer ( pkel_lnho (at) gmai_l.com // remove underscores and spaces), 2018. 
-
-Website: http://gazecapture.csail.mit.edu/
-
-Cite:
-
-Eye Tracking for Everyone
-K.Krafka*, A. Khosla*, P. Kellnhofer, H. Kannan, S. Bhandarkar, W. Matusik and A. Torralba
-IEEE Conference on Computer Vision and Pattern Recognition (CVPR), 2016
-
-@inproceedings{cvpr2016_gazecapture,
-Author = {Kyle Krafka and Aditya Khosla and Petr Kellnhofer and Harini Kannan and Suchendra Bhandarkar and Wojciech Matusik and Antonio Torralba},
-Title = {Eye Tracking for Everyone},
-Year = {2016},
-Booktitle = {IEEE Conference on Computer Vision and Pattern Recognition (CVPR)}
-}
-'''
+from .dataset import Dataset
+from . import metadata as md
 
 CHECKPOINTS_PATH = '.'
 
 
-class AverageMeter(object):
-    """Computes and stores the average and current value"""
-
-    def __init__(self):
-        self.reset()
-
-    def reset(self):
-        self.val = 0
-        self.avg = 0
-        self.sum = 0
-        self.count = 0
-
-    def update(self, val, n=1):
-        self.val = val
-        self.sum += val * n
-        self.count += n
-        self.avg = self.sum / self.count
-
-
-class Training:
+class Train:
 
     def __init__(self,
                  data_path: str,
@@ -91,14 +50,14 @@ class Training:
         self.print_freq = 10
         self.prec1 = 0
 
-    def __call__(self, model: nn.Module, *args: Any, **kwds: Any) -> None:
-        # model = GazeModel()
+    def __call__(self, model: nn.Module) -> None:
+
         model = torch.nn.DataParallel(model)
         model.cuda()
-        image_size = (224, 224)
         cudnn.benchmark = True
 
         # initialize learning params
+        image_size = (224, 224)
         best_prec1 = 1e20
         lr = self.lr
 
@@ -119,12 +78,12 @@ class Training:
             else:
                 print('Warning: Could not read checkpoint!')
 
-        data_train = DataLoader(data_path=self.data_path,
-                               split=md.TRAIN,
-                               image_size=image_size)
-        data_val = DataLoader(data_path=self.data_path,
-                             split=md.VALIDATE,
-                             image_size=image_size)
+        data_train = Dataset(data_path=self.data_path,
+                                split=md.TRAIN,
+                                image_size=image_size)
+        data_val = Dataset(data_path=self.data_path,
+                              split=md.VALIDATE,
+                              image_size=image_size)
 
         train_loader = torch.utils.data.DataLoader(data_train,
                                                    batch_size=self.batch_size,
@@ -140,10 +99,13 @@ class Training:
 
         criterion = nn.MSELoss().cuda()
 
-        optimizer = torch.optim.SGD(model.parameters(),
+        optimizer = torch.optim.Adam(model.parameters(),
                                     lr,
-                                    momentum=self.momentum,
                                     weight_decay=self.weight_decay)
+        # optimizer = torch.optim.SGD(model.parameters(),
+                                    # lr,
+                                    # momentum=self.momentum,
+                                    # weight_decay=self.weight_decay)
 
         # Quick test
         if self.sink:
@@ -157,10 +119,10 @@ class Training:
             lr = self.adjust_learning_rate(optimizer, epoch)
 
             # train for one epoch
-            self.train(train_loader, model, criterion, optimizer, epoch)
+            self.train(model, train_loader, criterion, optimizer, epoch)
 
             # evaluate on validation set
-            prec1 = self.validate(val_loader, model, criterion, epoch)
+            prec1 = self.validate(model, val_loader, criterion, epoch)
 
             # remember best prec@1 and save checkpoint
             is_best = prec1 < best_prec1
@@ -172,7 +134,8 @@ class Training:
                     'best_prec1': best_prec1,
                 }, is_best)
 
-    def train(self, model: nn.Module, train_loader, criterion, optimizer, epoch):
+    def train(self, model: nn.Module, train_loader, criterion, optimizer,
+              epoch):
 
         batch_time = AverageMeter()
         data_time = AverageMeter()
@@ -183,7 +146,8 @@ class Training:
 
         end = time.time()
 
-        for i, (row, face, left_eye, right_eye, face_grid, gaze) in enumerate(train_loader):
+        for i, (row, face, left_eye, right_eye, face_grid,
+                gaze) in enumerate(train_loader):
 
             # measure data loading time
             data_time.update(time.time() - end)
@@ -196,7 +160,7 @@ class Training:
             face = torch.autograd.Variable(face, requires_grad=True)
             left_eye = torch.autograd.Variable(left_eye, requires_grad=True)
             right_eye = torch.autograd.Variable(right_eye, requires_grad=True)
-            face_grid = torch.autograd.Variable(face_grid, requires_grad = True)
+            face_grid = torch.autograd.Variable(face_grid, requires_grad=True)
             gaze = torch.autograd.Variable(gaze, requires_grad=False)
 
             # compute output
@@ -307,3 +271,22 @@ class Training:
         for param_group in optimizer.state_dict()['param_groups']:
             param_group['lr'] = lr
         return lr
+
+
+class AverageMeter(object):
+    """Computes and stores the average and current value"""
+
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.val = 0
+        self.avg = 0
+        self.sum = 0
+        self.count = 0
+
+    def update(self, val, n=1):
+        self.val = val
+        self.sum += val * n
+        self.count += n
+        self.avg = self.sum / self.count
