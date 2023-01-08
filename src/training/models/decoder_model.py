@@ -30,7 +30,7 @@ class DecoderModel(nn.Module):
 
     def __init__(self):
         super(DecoderModel, self).__init__()
-        self.fc = nn.Sequential(
+        self.gaze_fc = nn.Sequential(
             nn.Linear(128 + 128 + 128, 256),
             nn.ReLU(inplace=True),
             nn.Linear(256, 128),
@@ -39,5 +39,5 @@ class DecoderModel(nn.Module):
         )
 
     def forward(self, x):
-        x = self.fc(x)
+        x = self.gaze_fc(x)
         return x

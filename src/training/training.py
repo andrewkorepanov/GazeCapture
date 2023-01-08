@@ -109,7 +109,7 @@ class Train:
 
         # Quick test
         if self.sink:
-            self.validate(val_loader, model, criterion, epoch)
+            self.validate(model, val_loader, criterion, epoch)
             return
 
         for epoch in range(0, epoch):
@@ -190,7 +190,7 @@ class Train:
                       data_time=data_time,
                       loss=losses))
 
-    def validate(self, val_loader, model, criterion, epoch):
+    def validate(self, model: nn.Module, val_loader, criterion, epoch):
         batch_time = AverageMeter()
         data_time = AverageMeter()
         losses = AverageMeter()
@@ -256,7 +256,7 @@ class Train:
         state = torch.load(filename)
         return state
 
-    def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
+    def save_checkpoint(self, state, is_best, filename='checkpoint.pth.tar'):
         if not os.path.isdir(CHECKPOINTS_PATH):
             os.makedirs(CHECKPOINTS_PATH, 0o777)
         bestFilename = os.path.join(CHECKPOINTS_PATH, 'best_' + filename)
