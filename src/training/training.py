@@ -2,7 +2,7 @@ import math, shutil, os, time, argparse
 import numpy as np
 import scipy.io as sio
 
-from typing import Any
+from pathlib import Path
 
 import torch
 import torch.nn as nn
@@ -10,9 +10,6 @@ import torch.nn.parallel
 import torch.backends.cudnn as cudnn
 import torch.optim
 import torch.utils.data
-import torchvision.transforms as transforms
-import torchvision.datasets as datasets
-import torchvision.models as models
 
 from .dataset import Dataset
 from . import metadata as md
@@ -99,13 +96,14 @@ class Train:
 
         criterion = nn.MSELoss().cuda()
 
-        optimizer = torch.optim.Adam(model.parameters(),
-                                    lr,
-                                    weight_decay=self.weight_decay)
-        # optimizer = torch.optim.SGD(model.parameters(),
+        # optimizer = torch.optim.Adam(model.parameters(),
                                     # lr,
-                                    # momentum=self.momentum,
                                     # weight_decay=self.weight_decay)
+        optimizer = torch.optim.SGD(model.parameters(),
+                                    lr,
+                                    momentum=self.momentum,
+                                    nesterov=True,
+                                    weight_decay=self.weight_decay)
 
         # Quick test
         if self.sink:
@@ -140,6 +138,7 @@ class Train:
         batch_time = AverageMeter()
         data_time = AverageMeter()
         losses = AverageMeter()
+        lossesLin = AverageMeter()
 
         # switch to train mode
         model.train()
@@ -170,6 +169,13 @@ class Train:
 
             losses.update(loss.data.item(), face.size(0))
 
+            lossLin = output - gaze
+            lossLin = torch.mul(lossLin, lossLin)
+            lossLin = torch.sum(lossLin, 1)
+            lossLin = torch.mean(torch.sqrt(lossLin))
+
+            lossesLin.update(lossLin.item(), face.size(0))
+
             # compute gradient and do SGD step
             optimizer.zero_grad()
             loss.backward()
@@ -182,13 +188,15 @@ class Train:
             print('Epoch (train): [{0}][{1}/{2}]\t'
                   'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
                   'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
-                  'Loss {loss.val:.4f} ({loss.avg:.4f})\t'.format(
+                  'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
+                  'Error L2 {lossLin.val:.4f} ({lossLin.avg:.4f})\t'.format(
                       epoch,
                       i,
                       len(train_loader),
                       batch_time=batch_time,
                       data_time=data_time,
-                      loss=losses))
+                      loss=losses,
+                      lossLin=lossesLin))
 
     def validate(self, model: nn.Module, val_loader, criterion, epoch):
         batch_time = AverageMeter()
@@ -271,6 +279,21 @@ class Train:
         for param_group in optimizer.state_dict()['param_groups']:
             param_group['lr'] = lr
         return lr
+
+    def save_model(self, model: nn.Module, path: Path):
+        saved = self.load_checkpoint()
+        if saved:
+            print(
+                'Loading checkpoint for epoch %05d with loss %.5f (which is the mean squared error not the actual linear error)...'
+                % (saved['epoch'], saved['best_prec1']))
+            state = saved['state_dict']
+            try:
+                model.module.load_state_dict(state)
+            except:
+                model.load_state_dict(state)
+            torch.save(model, path)
+        else:
+            raise Exception('Error: Could not read checkpoint!')
 
 
 class AverageMeter(object):
